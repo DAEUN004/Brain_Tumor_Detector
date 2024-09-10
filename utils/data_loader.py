@@ -1,85 +1,67 @@
 #patient_id,image_path,mask_path,mask 
-
 import csv
-from torch.utils.data import DataLoader
+import os
+import torch
+from torch.utils.data import DataLoader, random_split
+import torchvision.transforms.functional as TF
+from torchvision import transforms,utils
+from PIL import Image
+import pandas as pd
+
+data_mask = pd.read_csv('Healthcare_AI_Datasets/Brain_MRI/data_mask.csv')
 
 
+class BrainDataset():
 
-with open("Healthcare_AI_Datasets/Brain_MRI/data_mask.csv", "r") as f:
-    reader = csv.reader(f, delimiter=",")
-    for i, line in enumerate(reader):
-        image_path = 
-        print(line[3])
-
-
-#The image patch has to be Brain_Tumor_Detector/Healthcare_AI_Datasets/Brain_MRI/img_path
-class Dataset():
-
-    def __init__(self, annotations_file, img_dir, transform=None, target_transform=None):
-        self.img_labels = pd.read_csv(annotations_file)
-        self.img_dir = img_dir
+    def __init__(self, csv_file, root_dir, transform=None):
+        """
+            csv_file (string): Path to the csv file.
+            root_dir (string): Directory with all the images.
+            transform (callable, optional): Optional transform to be applied
+                on a sample.
+        """
+        self.data_frame = pd.read_csv(csv_file)
+        self.root_dir = root_dir
         self.transform = transform
-        self.target_transform = target_transform
+
+    def __len__(self):
+        return len(self.data_frame)
 
     def __getitem__(self, idx):
-        img_path = os.path.join(self.img_dir, self.img_labels.iloc[idx, 0])
-        image = read_image(img_path)
-        label = self.img_labels.iloc[idx, 1]
+        if torch.is_tensor(idx):
+            idx = idx.tolist()
+        
+        image_path = self.data_frame.iloc[idx, 1]
+        brain_img_path = os.path.join(self.root_dir,
+                                image_path)
+        brain_img = Image.open(brain_img_path)
+
         if self.transform:
-            image = self.transform(image)
-        if self.target_transform:
-            label = self.target_transform(label)
-        return image, label
+            brain_img = self.transform(brain_img)
 
-train_dataloader = DataLoader(training_data, batch_size=64, shuffle=True)
-test_dataloader = DataLoader(test_data, batch_size=64, shuffle=True)
+        mask = self.data_frame.iloc[idx, 3]
+        mask = torch.tensor(mask, dtype=torch.float32)
 
+        return brain_img, mask
 
-# # split the data into train and test data
-
-# from sklearn.model_selection import train_test_split
-
-# train, test = train_test_split(brain_df_train, test_size = 0.15)
-
-# # create a image generator
-# from keras_preprocessing.image import ImageDataGenerator
-
-# # Create a data generator which scales the data from 0 to 1 and makes validation split of 0.15
-# datagen = ImageDataGenerator(rescale=1./255., validation_split = 0.15)
-
-# train_generator=datagen.flow_from_dataframe(
-# dataframe=train,
-# directory= './',
-# x_col='image_path',
-# y_col='mask',
-# subset="training",
-# batch_size=16,
-# shuffle=True,
-# class_mode="categorical",
-# target_size=(256,256))
+    def get_data_loaders(self, batchsize = 32, train_split = 0.7, val_split = 0.15):
+        #Calculates the split size
+        total_size = len(self)
+        train_size = int(train_split * total_size)
+        val_size = int(val_split * total_size)
+        test_size = total_size - train_size - val_size
 
 
-# valid_generator=datagen.flow_from_dataframe(
-# dataframe=train,
-# directory= './',
-# x_col='image_path',
-# y_col='mask',
-# subset="validation",
-# batch_size=16,
-# shuffle=True,
-# class_mode="categorical",
-# target_size=(256,256))
+        train_dataset, val_dataset, test_dataset = random_split(self, [train_size, val_size, test_size])
 
-# # Create a data generator for test images
-# test_datagen=ImageDataGenerator(rescale=1./255.)
+        #Create DataLoaders
+        train_loader = DataLoader(train_dataset, batch_size=batchsize, shuffle=True)
+        val_loader = DataLoader(val_dataset, batch_size=batchsize, shuffle=False)
+        test_loader = DataLoader(test_dataset, batch_size=batchsize, shuffle=False)
 
-# test_generator=test_datagen.flow_from_dataframe(
-# dataframe=test,
-# directory= './',
-# x_col='image_path',
-# y_col='mask',
-# batch_size=16,
-# shuffle=False,
-# class_mode='categorical',
-# target_size=(256,256))
+        return train_loader, val_loader, test_loader
+
+
+
+
 
