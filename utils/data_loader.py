@@ -1,4 +1,5 @@
 #patient_id,image_path,mask_path,mask 
+
 import csv
 import os
 import torch
@@ -8,22 +9,24 @@ from torchvision import transforms,utils
 from PIL import Image
 import pandas as pd
 
-data_mask = pd.read_csv('Healthcare_AI_Datasets/Brain_MRI/data_mask.csv')
-
 
 class BrainDataset():
 
-    def __init__(self, csv_file, root_dir, transform=None):
+    def __init__(self, csv_file, root_dir, transform=None, segmentation=None):
         """
             csv_file (string): Path to the csv file.
             root_dir (string): Directory with all the images.
             transform (callable, optional): Optional transform to be applied
                 on a sample.
+            segmentation (bool, optional): If True, filters data for segmentation.
         """
         self.data_frame = pd.read_csv(csv_file)
         self.root_dir = root_dir
         self.transform = transform
-
+        self.segmentation = segmentation
+        if segmentation:
+            self.data_frame = self.data_frame[self.data_frame['mask'] == 1]
+            
     def __len__(self):
         return len(self.data_frame)
 
@@ -35,9 +38,17 @@ class BrainDataset():
         brain_img_path = os.path.join(self.root_dir,
                                 image_path)
         brain_img = Image.open(brain_img_path)
-
+        brain_img = transforms.ToTensor()(brain_img)
+        
         if self.transform:
             brain_img = self.transform(brain_img)
+
+        if self.segmentation:
+            mask_image_path = self.data_frame.iloc[idx, 2]
+            brain_mask_path = os.path.join(self.root_dir, mask_image_path)
+            mask_img = Image.open(brain_mask_path)
+            mask_img = transforms.ToTensor()(mask_img)
+            return brain_img, mask_img
 
         mask = self.data_frame.iloc[idx, 3]
         mask = torch.tensor(mask, dtype=torch.float32)

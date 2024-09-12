@@ -5,38 +5,27 @@ from torch.utils.data import DataLoader
 from torchvision.models import resnet50, ResNet50_Weights
 import torchvision.transforms as transforms
 from torchvision.datasets import ImageFolder
-from utils.data_loader import BrainDataset
 import os
+import sys
+import os
+
+
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+from utils.data_loader import BrainDataset
+from models.resnet import ResNetClassifier
 
 device = torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
 print(f'Using {device} for inference')
 
 
-resnet50 = resnet50(weights=ResNet50_Weights.DEFAULT)
+resnet50 = ResNetClassifier()
 resnet50 = resnet50.to(device)
 resnet50.eval()
 
-# freeze the model weights
-for param in resnet50.parameters():
-    param.requires_grad = False
-
-
-num_features = resnet50.fc.in_features
-resnet50.fc = nn.Sequential(
-    nn.AdaptiveAvgPool2d((1, 1)),
-    nn.Flatten(),
-    nn.Linear(num_features, 256),
-    nn.ReLU(),
-    nn.Dropout(0.3),
-    nn.Linear(256, 256),
-    nn.ReLU(),
-    nn.Dropout(0.3),
-    nn.Linear(256, 2),  # Binary classification
-    nn.Softmax(dim=1)
-).to(device)
 
 criterion = nn.CrossEntropyLoss()
-optimizer = optim.Adam(resnet50.fc.parameters(), lr = 0.005)
+optimizer = optim.Adam(resnet50.parameters(), lr = 0.005)
 
 class EarlyStopping:
     def __init__(self, patience=20, verbose=False):
@@ -72,7 +61,7 @@ dataloader = BrainDataset(csv_file = 'Healthcare_AI_Datasets/Brain_MRI/data_mask
 train_loader, val_loader, test_loader = dataloader.get_data_loaders()
 
 
-num_epochs = 10
+num_epochs = 100
 patience = 20
 early_stopping = EarlyStopping(patience=patience, verbose=True)
 best_val_loss = float("inf")
@@ -84,8 +73,8 @@ for epoch in range(num_epochs):
     total = 0
 
     for images, labels in train_loader:
-        images, labels = images.to(device), labels.to(device)
-
+        images, labels = images.to(device), labels.to(device).long()
+        #images: [batchsize, 3, 256, 256]
         outputs = resnet50(images)
         loss = criterion(outputs, labels)
 
@@ -109,7 +98,7 @@ for epoch in range(num_epochs):
     total = 0
     with torch.no_grad():
         for images, labels in val_loader:
-            images, labels = images.to(device), labels.to(device)
+            images, labels = images.to(device), labels.to(device).long()
 
             outputs = resnet50(images)
             loss = criterion(outputs, labels)
