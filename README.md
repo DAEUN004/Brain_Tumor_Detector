@@ -14,7 +14,7 @@ To train the model for brain tumor segmentation, run the following command:
 ```bash
 python models/train_segmentation.py
 
-## 2. View the Tumor Segmentation
+### 2. View the Tumor Segmentation
 Once the model is trained, you can view the segmentation results by running:
 
 ```bash
